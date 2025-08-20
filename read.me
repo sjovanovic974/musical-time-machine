@@ -1,0 +1,286 @@
+# 🎛️ Musical Time Machine
+
+Kreira Spotify plejlistu od **Billboard Hot 100** za izabrani datum.  
+Uneseš **YYYY-MM-DD**, aplikacija pronađe odgovarajuću *chart sedmicu*, preuzme Hot 100 i (po izboru) napravi Spotify playlistu sa prvih *N* pjesama.
+
+---
+
+## Sadržaj
+
+- [Šta dobijaš](#šta-dobijaš)
+- [Preduvjeti](#preduvjeti)
+- [Instalacija](#instalacija)
+- [Podešavanje okruženja (ENV)](#podešavanje-okruženja-env)
+- [Pokretanje](#pokretanje)
+- [CLI referenca](#cli-referenca)
+- [Primjeri upotrebe](#primjeri-upotrebe)
+- [Konfiguracija u kodu](#konfiguracija-u-kodu)
+- [Struktura projekta](#struktura-projekta)
+- [Kako radi (ukratko)](#kako-radi-ukratko)
+- [Export (CSV/JSON)](#export-csvjson)
+- [Testiranje](#testiranje)
+- [Troubleshooting (često postavljena pitanja)](#troubleshooting-često-postavljena-pitanja)
+- [Privatnost & sigurnost](#privatnost--sigurnost)
+- [Zahvale](#zahvale)
+- [Licenca](#licenca)
+
+---
+
+## Šta dobijaš
+
+- ✅ Validacija unosa datuma (**YYYY-MM-DD**, max 5 pokušaja)
+- ✅ Preuzimanje **Billboard Hot 100** za sedmicu koja pokriva uneseni datum
+- ✅ Kreiranje **Spotify** playliste sa prvim *N* pjesama (default **10**)
+- ✅ Robusna Spotify pretraga (čišćenje naslova/umjetnika, fallback tržišta **BA → US**)
+- ✅ CLI opcije: `--date`, `--playlist-size`, `--preview`, `--save`, `--dry-run`, `--market`, …
+- ✅ Export u **CSV** ili **JSON**
+- ✅ Jednostavni **pytest** unit testovi
+
+---
+
+## Preduvjeti
+
+1. **Spotify korisnički nalog** (besplatan je dovoljan)  
+   <https://www.spotify.com>
+2. **Spotify Developer Dashboard** (za Client ID/Secret)  
+   <https://developer.spotify.com/dashboard>
+   - Kreiraj novu aplikaciju.
+   - Otvori **Edit Settings → Redirect URIs** i dodaj **tačno**:
+     ```
+     http://127.0.0.1:8888/callback
+     ```
+     Klikni **Add**, zatim **Save**.  
+     > Napomena: `localhost` je deprecated. Koristi **127.0.0.1** (HTTP je OK lokalno).
+3. **Python 3.10+**
+4. **uv** (preporučeno) ili obični `pip`
+
+---
+
+## Instalacija
+
+U root direktoriju projekta:
+
+```bash
+# Runtime zavisnosti
+uv pip install -r requirements.txt
+# (Za testove)
+uv pip install -r requirements-dev.txt
+```
+
+> Alternativa bez uv:  
+> `pip install -r requirements.txt` i (opcionalno) `pip install -r requirements-dev.txt`.
+
+**Virtualno okruženje (ako koristiš pip):**
+```bash
+python -m venv .venv
+# macOS/Linux:
+source .venv/bin/activate
+# Windows PowerShell:
+.\\.venv\\Scripts\\Activate.ps1
+
+pip install -r requirements.txt
+```
+
+---
+
+## Podešavanje okruženja (ENV)
+
+Postavi **identične** vrijednosti kao na Spotify Dashboardu.
+
+**macOS / Linux (bash/zsh):**
+```bash
+export SPOTIPY_CLIENT_ID="your_client_id"
+export SPOTIPY_CLIENT_SECRET="your_client_secret"
+export SPOTIPY_REDIRECT_URI="http://127.0.0.1:8888/callback"
+```
+
+**Windows PowerShell:**
+```powershell
+$env:SPOTIPY_CLIENT_ID = 'your_client_id'
+$env:SPOTIPY_CLIENT_SECRET = 'your_client_secret'
+$env:SPOTIPY_REDIRECT_URI = 'http://127.0.0.1:8888/callback'
+```
+
+**PyCharm**: Run/Debug Configuration → *Environment variables* → dodaj gore navedene parove.
+
+> Ako promijeniš Redirect URI na Dashboardu, moraš promijeniti i ENV vrijednost 1:1.
+
+---
+
+## Pokretanje
+
+**Interaktivno (traži datum):**
+```bash
+uv run python main.py
+```
+
+**Neinteraktivno (CLI flagovi):**
+```bash
+uv run python main.py --date 1999-05-15 --playlist-size 10 --save csv --dry-run
+```
+
+Prvi put će se otvoriti browser za Spotify login/consent. Cache se čuva u `.spotify_cache`.
+
+---
+
+## CLI referenca
+
+| Opcija | Opis | Default | Primjer |
+|---|---|---:|---|
+| `--date YYYY-MM-DD` | Ciljani datum (preskače interaktivni unos) | — | `--date 2001-09-08` |
+| `--playlist-size N` | Koliko pjesama ide u **preview i playlistu** | `10` | `--playlist-size 100` |
+| `--preview N` | Koliko ispisati u previewu | `= playlist-size` | `--preview 20` |
+| `--save {none,csv,json}` | Snimi chart u fajl | `none` | `--save csv` |
+| `--outdir DIR` | Direktorij za snimanje fajla | `charts` | `--outdir output` |
+| `--dry-run` | Preskoči Spotify korak (samo dohvat + ispis) | off | `--dry-run` |
+| `--public` | Napravi javnu playlistu (default privatna) | off | `--public` |
+| `--market {BA,US,from_token}` | Override tržišta za Spotify pretragu | `BA` (fallback US) | `--market US` |
+| `--verbose` | Verbose logging | off | `--verbose` |
+
+---
+
+## Primjeri upotrebe
+
+```bash
+# 1) Brzo pokretanje uz interaktivni unos
+uv run python main.py
+
+# 2) Neinteraktivno + export u CSV, bez kreiranja playliste
+uv run python main.py --date 2003-07-18 --playlist-size 10 --save csv --dry-run
+
+# 3) Napravi punu Top 100 playlistu
+uv run python main.py --date 1996-11-02 --playlist-size 100
+
+# 4) Koristi US market za pretragu
+uv run python main.py --date 2010-01-01 --market US
+
+# 5) Više ispisa u konzoli (debug-ish)
+uv run python main.py --date 1999-05-15 --verbose
+```
+
+---
+
+## Konfiguracija u kodu
+
+Sve centralno je u `time_machine/config.py` (`Config` dataclass):
+
+- `playlist_size` — koliko pjesama ide u **preview i playlistu** (default **10**)
+- `search_market_default` — podrazumijevano tržište za Spotify pretragu (default **"BA"**, fallback **"US"**)
+- `year_window` — pretraga +- godina oko chart sedmice (default **1**)
+- `scopes` — Spotify OAuth scope-ovi (default: `"playlist-modify-private playlist-modify-public"`)
+- `client_id`, `client_secret`, `redirect_uri`, `token_cache_path` — čitaju se iz ENV-a
+
+> Napomena: Ako želiš striktno koristiti `--market from_token`, a da **ne** padaš na BA/US, dodaj i `user-read-private` u `scopes` **i obriši `.spotify_cache`** da prisiliš re-login. Naš podrazumijevani pristup radi bez tog scope-a (ima fallback).
+
+---
+
+## Struktura projekta
+
+```
+time_machine/
+  config.py           # konstante i ENV
+  models.py           # Song + custom exceptions
+  validation.py       # unos + validacija datuma
+  billboard_client.py # dohvat Hot 100 za chart sedmicu
+  spotify_auth.py     # Spotify OAuth klijent (spotipy)
+  spotify_search.py   # čišćenje + robusna pretraga (BA → US fallback)
+  spotify_playlist.py # kreiranje i popunjavanje playliste (poštuje playlist_size)
+  io_utils.py         # CSV/JSON export
+  logging_setup.py    # jednostavna logging konfiguracija
+  cli.py              # CLI ulazna tačka
+main.py               # tanki launcher (poziva cli.main)
+```
+
+---
+
+## Kako radi (ukratko)
+
+1. **Unos datuma** → validacija (**YYYY-MM-DD**, ne u budućnosti, ne prije 1958-08-04).
+2. **Billboard** → dohvat Hot 100 za sedmicu koja pokriva uneseni datum.
+3. **Preview** → ispis `playlist_size` stavki (po defaultu 10).
+4. **Spotify (opcionalno)** → autentikacija (OAuth), kreiranje playliste, pretraga i dodavanje pjesama:
+   - čišćenje naslova (uklanja `(Live)`, `(Remaster)`, …) i *feat.* dijelova kod izvođača;
+   - pretraga u rasponu godina `chart_year ± year_window`;
+   - tržišta: **BA**, pa fallback na **US**; ako koristiš `from_token` i nemaš `user-read-private`, API vrati 403 i kod sam prebacuje na BA/US;
+   - deduplikacija ID-jeva prije dodavanja.
+
+---
+
+## Export (CSV/JSON)
+
+Ako dodaš `--save csv` ili `--save json`, aplikacija snima fajl u `--outdir` (default `charts/`) kao:
+```
+hot-100_YYYY-MM-DD.csv
+hot-100_YYYY-MM-DD.json
+```
+CSV kolone: `rank,title,artist`.  
+JSON: niz objekata `{"rank": int, "title": str, "artist": str}`.
+
+---
+
+## Testiranje
+
+Instaliraj dev zavisnosti i pokreni testove:
+
+```bash
+uv pip install -r requirements-dev.txt
+uv run pytest -q
+```
+
+Testovi koriste stubove/mokove, tako da **nema stvarnih mrežnih poziva**.
+
+---
+
+## Troubleshooting (često postavljena pitanja)
+
+**1) `INVALID_CLIENT: Invalid redirect URI` / `INVALID_REDIRECT_URI`**  
+- Redirect URI u ENV **mora** 1:1 odgovarati Dashboardu.  
+  Preporučeno: `http://127.0.0.1:8888/callback` (ne `localhost`).  
+- U Dashboardu klikni **Add** → **Save** i provjeri da se URI pojavio kao “chip”.  
+- Obriši cache i ponovi login:
+  ```bash
+  rm -f .spotify_cache .cache  # PowerShell: del .spotify_cache; del .cache
+  ```
+
+**2) U konzoli piše: “Using 'localhost' as a redirect URI is being deprecated.”**  
+- Spotify deprecira `localhost`; koristi **127.0.0.1** u Redirect URIs i ENV.
+
+**3) `403 Insufficient client scope` kod pretrage**  
+- Događa se često sa `market="from_token"` bez scope-a `user-read-private`.  
+- Naš kod automatski pada na `BA` pa `US`. Ako želiš striktan `from_token`, dodaj `user-read-private` u `scopes` i obriši `.spotify_cache`.
+
+**4) Ne vidim prompt u PyCharm-u / “vrti se u prazno”**  
+- Run/Debug Configuration: isključi *Run with Python console* i *Redirect input*.  
+- Umjesto toga pokreni iz terminala: `uv run python main.py`  
+- Ili prosledi datum preko CLI: `--date YYYY-MM-DD`.
+
+**5) `429 Too Many Requests` (rate limit)**  
+- Klijent poštuje `Retry-After` i radi backoff; samo pusti da završi.
+
+**6) Playlist ima 100 pjesama, a ja sam vidio preview 10?**  
+- `playlist_size` upravlja **i previewom i playlistom**. Ako želiš samo 10, pokreni s `--playlist-size 10` (ili promijeni u `Config`).
+
+---
+
+## Privatnost & sigurnost
+
+- **Ne** committuj svoj `SPOTIPY_CLIENT_SECRET` u repozitorij.  
+- ENV varijable postavljaj lokalno (IDE Run Config, shell, `.env` ako dodaš `python-dotenv`).  
+- Cache (`.spotify_cache`) sadrži OAuth tokene; čuvaj ga lokalno.
+
+---
+
+## Zahvale
+
+- [**billboard.py**](https://github.com/guoguo12/billboard-charts) — biblioteka za Billboard chartove  
+- [**spotipy**](https://spotipy.readthedocs.io/) — Spotify Web API klijent za Python
+
+---
+
+## Licenca
+
+MIT
+
+---
+
+Sretno s putovanjem kroz muzičku istoriju! 🎶

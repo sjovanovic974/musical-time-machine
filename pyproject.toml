@@ -1,4 +1,19 @@
+[project]
+name = "musical-time-machine"
+version = "0.1.0"
+description = "Create a Spotify playlist from Billboard Hot 100 for a given date."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "billboard.py",
+  "spotipy",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
 
 [tool.pytest.ini_options]
 addopts = "-q"
-pythonpath = ["."]
+pythonpath = ["." ]
